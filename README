@@ -1,0 +1,4 @@
+This is a Mercurial hook to send messages about pushes and commits
+to a message broker via AMQP or STOMP.
+
+It is currently only tested with RabbitMQ

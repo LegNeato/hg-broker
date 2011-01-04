@@ -1,0 +1,6 @@
+[broker]
+BROKER_HOST = localhost
+BROKER_USER = guest
+BROKER_PASS = guest
+MSG_EXCHANGE = amqp.fanout
+REPO_ROOT = /path/to/your/repo # Change this
