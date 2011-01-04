@@ -5,11 +5,11 @@ It is currently only tested with RabbitMQ.
 
 
 Dependencies
---------------------
+====================
 * carrot
 
 Installing
---------------------
+====================
 
 1. Install the dependencies above
 2. Copy broker.py somewhere in your PYTHONPATH
@@ -20,5 +20,5 @@ Installing
    'example.hrc'
 
 Limitations
---------------------
+====================
 1. Assumes the exchange you are publishing to is a topic exchange
