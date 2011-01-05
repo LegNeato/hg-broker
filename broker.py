@@ -106,7 +106,7 @@ var_types = {
     'boolean': [
                    'MSG_PERSISTENT',
                    'MSG_USE_ENVELOPE',
-                   'HG_FAIL_ON_MSG_FAIL'
+                   'HG_FAIL_ON_MSG_FAIL',
                ],
     'comma':   [
                    'AUTOMATED_USERS', 
@@ -133,7 +133,6 @@ for path in config_paths:
 if 'broker' not in hgconf:
     raise NoBrokerConfiguration
 
-
 # Make sure required variables are set
 for req in required:
     if req not in hgconf['broker']:
@@ -153,7 +152,8 @@ for setvar in hgconf['broker']:
     value = hgconf['broker'][setvar]
     if setvar in var_types['boolean']:
         # Specified a boolean variable
-        if isinstance(value, string) and value.lower() in ['0','false','no']:
+        if isinstance(value, basestring) and \
+           value.lower() in ['0','false','no']:
             CONF[setvar] = False
         else:
             CONF[setvar] = bool(value)
