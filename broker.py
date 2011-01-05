@@ -90,6 +90,13 @@ defaults = {
     'LABEL_CHANGESET':  'commit',  # commit, changeset, revision, change, etc
     'LABEL_CHANGESETS': 'commits', # plural of the above
 
+    # bugs, defects, issues, etc
+    'LABEL_BUGS': 'bugs',
+
+    # Git uses master, hg uses default
+    # Allow setting either way in the message routing key
+    'LABEL_DEFAULT_BRANCH': 'default',
+
     'DATE_FORMAT': '%Y-%m-%dT%H:%M:%S%z',
 
     # For extracting data from pushes/changes
@@ -173,19 +180,24 @@ for setvar in hgconf['broker']:
 # ------------------------------------------------------------------------------
 
 def send_push_message(connection, data):
-    # Construct the routing key from the repo info in the push
+    # Construct the routing key from the info in the push
     routing_key = "%s%s.%s%s" % (CONF['MSG_ROUTING_PREFIX'],
                                  CONF['LABEL_PUSH'], 
-                                 data['repository'].replace(CONF['REPO_ROOT'], '').replace('/','.'),
+                                 data['repository'].replace('/','.'),
                                  CONF['MSG_ROUTING_POSTFIX'])
     routing_key = re.sub(r'\.+', '.', routing_key)
     _send_message(connection, routing_key, data, CONF['MSG_USE_ENVELOPE'])
 
 def send_changeset_message(connection, data):
-    # Construct the routing key from the repo info in the push
-    routing_key = "%s%s.%s%s" % (CONF['MSG_ROUTING_PREFIX'],
+    if not data['branch'] or data['branch'] == 'default':
+        branch = CONF['LABEL_DEFAULT_BRANCH']
+    else:
+        branch = data['branch']
+    # Construct the routing key from the info in the changeset
+    routing_key = "%s%s.%s.%s%s" % (CONF['MSG_ROUTING_PREFIX'],
                                  CONF['LABEL_CHANGESET'],
-                                 data['repository'].replace(CONF['REPO_ROOT'], '').replace('/','.'),
+                                 data['repository'].replace('/','.'),
+                                 branch,
                                  CONF['MSG_ROUTING_POSTFIX'])
     routing_key = re.sub(r'\.+', '.', routing_key)
     _send_message(connection, routing_key, data, CONF['MSG_USE_ENVELOPE'])
@@ -251,12 +263,12 @@ def get_push_data(ui, repo, node):
         changesetdata['tags']      = ctx.tags()
 
         # Add in some blank fields that may be filled later
-        changesetdata['automated']      = False
-        changesetdata['approvers']      = []
-        changesetdata['reviewers']      = []
-        changesetdata['superreviewers'] = []
-        changesetdata['uireviewers']    = []
-        changesetdata['bugs']           = set()
+        changesetdata['automated']        = False
+        changesetdata['approvers']        = []
+        changesetdata['reviewers']        = []
+        changesetdata['superreviewers']   = []
+        changesetdata['uireviewers']      = []
+        changesetdata[CONF['LABEL_BUGS']] = set()
         changesetdata['files'] = {
             'added':    [],
             'modified': [],
@@ -290,10 +302,10 @@ def get_push_data(ui, repo, node):
         matches = CONF['REGEX_BUG'].findall(changesetdata['message'])
         if matches:
             for bugnum in matches:
-                changesetdata['bugs'].add(bugnum)
+                changesetdata[CONF['LABEL_BUGS']].add(bugnum)
 
         # Some encodings (like JSON) can't handle encoding sets
-        changesetdata['bugs'] = list(changesetdata['bugs'])
+        changesetdata[CONF['LABEL_BUGS']] = list(changesetdata[CONF['LABEL_BUGS']])
 
         # Find all the "[type]=[people]" flags 
         # (except for b/bug=#####, as that is found above)
@@ -371,10 +383,12 @@ def send_messages(ui, repo, node, **kwargs):
 
         # Send the overall push message. Most consumers likely
         # only care about this message
+        print "    Sending the %s message..." % CONF['LABEL_PUSH']
         send_push_message(connection, pushdata)
 
         # Also send messages for each changeset as consumers may be
         # interested in those as well
+        print "    Sending individual %s messages..." % CONF['LABEL_CHANGESET']
         for changedata in pushdata[CONF['LABEL_CHANGESETS']]:
             changedata['repository'] = pushdata['repository']
             send_changeset_message(connection, changedata)
@@ -399,5 +413,5 @@ def send_messages(ui, repo, node, **kwargs):
             return 0
 
     # Hook succeeded
-    print "All messages sent successfully."
+    print "All messages sent to %s successfully." % CONF['BROKER_HOST']
     return 0;
