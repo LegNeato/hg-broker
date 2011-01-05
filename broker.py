@@ -238,10 +238,18 @@ def get_push_data(ui, repo, node):
     # XXX: Is this the correct way to get the user?
     # Not sure, but it's the way the pushlog hook does it
     data['who']  = {'raw': os.environ['USER']}
+    m = CONF['REGEX_NAME'].match(os.environ['USER'])
+    if m:
+        if m.group(1):
+            data['who']['name'] = m.group(1).strip()
+        if m.group(2):
+            data['who']['email'] = m.group(1).strip()
+
+    # Get the time the push happened (now!) in the proper format
     data[CONF['LABEL_PUSHED'] + '_at'] = mercurial.util.datestr(None, CONF['DATE_FORMAT'])
 
-    # TODO: Figure out how to get this info without manually
-    # setting the root
+    # The repository is a full path. Cut off to the containing directory
+    # if we were given one
     data['repository'] = repo.path.replace(CONF['REPO_ROOT'], '')
 
     # By default we have no changesets
@@ -256,7 +264,7 @@ def get_push_data(ui, repo, node):
         changesetdata = {}
         changesetdata['revision']  = ctx.rev()
         changesetdata['node']      = hex(ctx.node())
-        changesetdata['author']    = ctx.user()
+        changesetdata['author']    = {'raw': ctx.user()}
         changesetdata['timestamp'] = ctx.date()
         changesetdata['message']   = ctx.description()
         changesetdata['branch']    = ctx.branch()
@@ -289,14 +297,12 @@ def get_push_data(ui, repo, node):
                                                           CONF['DATE_FORMAT'])
 
         # Parse out some user info so consumers don't have to
-        usertmp = {'raw': changesetdata['author']}
-        m = CONF['REGEX_NAME'].match(changesetdata['author'])
+        m = CONF['REGEX_NAME'].match(changesetdata['author']['raw'])
         if m:
             if m.group(1):
-                usertmp['name'] = m.group(1).strip()
+                changesetdata['author']['name'] = m.group(1).strip()
             if m.group(2):
-                usertmp['email'] = m.group(2).strip()
-        changesetdata['author'] = usertmp
+                changesetdata['author']['email'] = m.group(2).strip()
 
         # Get all the mentioned bug numbers
         matches = CONF['REGEX_BUG'].findall(changesetdata['message'])
@@ -310,6 +316,8 @@ def get_push_data(ui, repo, node):
         # Find all the "[type]=[people]" flags 
         # (except for b/bug=#####, as that is found above)
         # TODO: This is ugly and should be more robust
+        # TODO: These should really be in plugins and people should
+        # be able to write their own custom ones
         matches = CONF['REGEX_FLAGS'].findall(changesetdata['message'])
         if matches:
             for (what, who) in matches:
