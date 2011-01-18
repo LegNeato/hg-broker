@@ -14,7 +14,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
 
 # This script implements a Mercurial hook to send messages to a message broker
@@ -42,138 +42,117 @@ demandimport.enable()
 # Config
 # ------------------------------------------------------------------------------
 
-# Some exceptions our configuration parsing can throw
-class NoBrokerConfiguration(Exception):
-    def __str__(self):
-        return 'Please specify configuration values in a "broker" section' + \
-               ' of your config file'
+CONF = {}
 
-class MissingRequiredBrokerConfigurationValue(Exception):
+# Some exceptions our configuration parsing can throw
+class MissingRequiredConfigValue(ValueError):
     def __init__(self, what):
         self.what = what
-        super(MissingRequiredBrokerConfigurationValue, self).__init__()
+        super(MissingRequiredConfigValue, self).__init__()
     def __str__(self):
         s = 'A value for "%s" must be set in the "broker"' % self.what
         s = s + ' section of your config file'
         return s
 
-# List of config variables required to be set
-required = [
-    'BROKER_HOST',
-    'BROKER_USER',
-    'BROKER_PASS',
+def get_configuration(ui):
+    # List of config variables required to be set
+    required = [
+        'BROKER_HOST',
+        'BROKER_USER',
+        'BROKER_PASS',
 
-    'MSG_EXCHANGE',
+        'MSG_EXCHANGE',
 
-    # Full path to where the repositories are stored
-    'REPO_ROOT',
-]
+        # Full path to where the repositories are stored
+        'REPO_ROOT',
+    ]
 
-# Optional config variables and their default values
-defaults = {
-    'BROKER_PORT':     None,
-    'BROKER_PROTOCOL': 'AMQP',
+    # Optional config variables and their default values
+    defaults = {
+        'BROKER_PORT':     None,
+        'BROKER_PROTOCOL': 'AMQP',
 
-    'MSG_VHOST':           '/',
-    'MSG_PERSISTENT':      True,
-    'MSG_USE_ENVELOPE':    True,
-    'MSG_ROUTING_PREFIX':  'hg.',
-    'MSG_ROUTING_POSTFIX': '',
+        'MSG_VHOST':           '/',
+        'MSG_PERSISTENT':      True,
+        'MSG_USE_ENVELOPE':    True,
+        'MSG_ROUTING_PREFIX':  'hg.',
+        'MSG_ROUTING_POSTFIX': '',
 
-    'HG_FAIL_ON_MSG_FAIL': False,
+        'HG_FAIL_ON_MSG_FAIL': False,
 
-    # Some terminology may be different for people
-    # Currently these match the GitHub service hook
-    'LABEL_PUSH':       'push',    # push, landing, check-in, etc
-    'LABEL_PUSHES':     'pushes',  # plural of the above
-    'LABEL_PUSHED':     'pushed',  # past tense of the above
-    'LABEL_CHANGESET':  'commit',  # commit, changeset, revision, change, etc
-    'LABEL_CHANGESETS': 'commits', # plural of the above
+        # Some terminology may be different for people
+        # Currently these match the GitHub service hook
+        'LABEL_PUSH':       'push',    # push, landing, check-in...
+        'LABEL_PUSHES':     'pushes',  # plural of the above
+        'LABEL_PUSHED':     'pushed',  # past tense of the above
+        'LABEL_CHANGESET':  'commit',  # commit, changeset, revision, change...
+        'LABEL_CHANGESETS': 'commits', # plural of the above
 
-    # bugs, defects, issues, etc
-    'LABEL_BUGS': 'bugs',
+        # bugs, defects, issues...
+        'LABEL_BUGS': 'bugs',
 
-    # Git uses master, hg uses default
-    # Allow setting either way in the message routing key
-    'LABEL_DEFAULT_BRANCH': 'default',
+        # Git uses master, hg uses default
+        # Allow setting either way in the message routing key
+        'LABEL_DEFAULT_BRANCH': 'default',
 
-    'DATE_FORMAT': '%Y-%m-%dT%H:%M:%S%z',
+        'DATE_FORMAT': '%Y-%m-%dT%H:%M:%S%z',
 
-    # For extracting data from pushes/changes
-    'REGEX_NAME':   re.compile(r'^(.*)\s*<(.*)>\s*$', re.I),
-    'REGEX_CLOSED': re.compile(r'closed\s*tree', re.I),
-    'REGEX_BUG':    re.compile(r'\d{4,}', re.I),
-    'REGEX_FLAGS':  re.compile(r'(approval|review|reviewed|super|ui-review|ui|[ars,/]+|a[0-9\.]+)=(\w+,?/?\w+)', re.I),
+        # For extracting data from pushes/changes
+        'REGEX_NAME':   re.compile(r'^(.*)\s*<(.*)>\s*$', re.I),
+        'REGEX_CLOSED': re.compile(r'closed\s*tree', re.I),
+        'REGEX_BUG':    re.compile(r'\d{4,}', re.I),
+        'REGEX_FLAGS':  re.compile(r'(approval|review|reviewed|super|ui-review|ui|[ars,/]+|a[0-9\.]+)=(\w+,?/?\w+)', re.I),
 
-    'AUTOMATED_USERS': [],
-}
+        'AUTOMATED_USERS': [],
+    }
 
-# The ini doesn't have type information so we may need to translate
-var_types = {
-    'boolean': [
-                   'MSG_PERSISTENT',
-                   'MSG_USE_ENVELOPE',
-                   'HG_FAIL_ON_MSG_FAIL',
-               ],
-    'comma':   [
-                   'AUTOMATED_USERS', 
-               ],
-    'regex':   [
-                   'REGEX_NAME',
-                   'REGEX_CLOSED',
-                   'REGEX_BUG',
-                   'REGEX_FLAGS',
-               ],
-    # Everything else is considered a string
-}
+    # The ini doesn't have type information so we may need to translate
+    var_types = {
+        'boolean': [
+                       'MSG_PERSISTENT',
+                       'MSG_USE_ENVELOPE',
+                       'HG_FAIL_ON_MSG_FAIL',
+                   ],
+        'comma':   [
+                       'AUTOMATED_USERS', 
+                   ],
+        'regex':   [
+                       'REGEX_NAME',
+                       'REGEX_CLOSED',
+                       'REGEX_BUG',
+                       'REGEX_FLAGS',
+                   ],
+        # Everything else is considered a string
+    }
 
-# Load all the config files
-config_paths = mercurial.util.rcpath()
-hgconf = mercurial.config.config()
-for path in config_paths:
-    try:
-        hgconf.read(path)
-    except IOError:
-        pass
+    # Make sure required variables are set
+    for req in required:
+        if not ui.config('broker', req):
+            raise MissingRequiredConfigValue(req)
 
-# Make sure there is a broker section defined somewhere
-if 'broker' not in hgconf:
-    raise NoBrokerConfiguration
+    # Pull our final configuration together...
+    # Set the defaults first.
+    # We don't need to transform these as they are set in
+    # python above so they should be using the correct types
+    for defaultvar in defaults:
+        CONF[defaultvar] = defaults[defaultvar]
 
-# Make sure required variables are set
-for req in required:
-    if req not in hgconf['broker']:
-        raise MissingRequiredBrokerConfigurationValue(req)
-
-
-# Pull our final configuration together...
-CONF = {}
-
-# Set the defaults first. We don't need to transform these as they are set in
-# python above so they should be using the correct types
-for defaultvar in defaults:
-    CONF[defaultvar] = defaults[defaultvar]
-
-# Set what the user has put in the config file, transforming if we need to
-for setvar in hgconf['broker']:
-    value = hgconf['broker'][setvar]
-    if setvar in var_types['boolean']:
-        # Specified a boolean variable
-        if isinstance(value, basestring) and \
-           value.lower() in ['0','false','no']:
-            CONF[setvar] = False
+    # Set what the user has put in the config file, transforming if we need to
+    for setvar, value in ui.configitems('broker'):
+        if setvar in var_types['boolean']:
+            value = ui.configbool('broker', setvar)
+        elif setvar in var_types['comma']:
+            # Specified a comma delimited value
+            value = ui.configlist('broker', setvar)
+        elif setvar in var_types['regex']:
+            # Specified a regex string, precompile
+            raw = ui.config('broker', setvar)
+            value = re.compile(raw, re.I)
         else:
-            CONF[setvar] = bool(value)
-    elif setvar in var_types['comma']:
-        # Specified a comma delimited value
-        CONF[setvar] = re.split(r',\s*', value)
-    elif setvar in var_types['regex']:
-        # Specified a regex string, precompile
-        CONF[setvar] = re.compile(value, re.I)
-    else:
-        # Default to a string / setting the variable directly
-        CONF[setvar] = value
+            value = ui.config('broker', setvar)
 
+        # Set the config variable
+        CONF[setvar] = value
 
 # ------------------------------------------------------------------------------
 # Functions
@@ -366,6 +345,9 @@ def get_push_data(ui, repo, node):
     return data
 
 def send_messages(ui, repo, node, **kwargs):
+
+    # Read the config
+    get_configuration(ui)
 
     # Let the user know what is going on
     print "Sending messages to %s" % CONF['BROKER_HOST']
