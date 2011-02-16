@@ -7,6 +7,7 @@ It is currently only tested with RabbitMQ.
 Dependencies
 ====================
 * carrot
+* uuid (if using python < 2.6)
 
 Installing
 ====================
