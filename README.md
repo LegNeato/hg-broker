@@ -14,7 +14,7 @@ Installing
 1. Install the dependencies above
 2. Copy broker.py somewhere in your PYTHONPATH
 3. Edit the "hooks" section of your config file and add:
-    pretxnchangegroup.z_broker = python:broker.send_message
+    pretxnchangegroup.z_broker = python:broker.send_messages
 4. Create a "broker" section in your config file
 5. The minimum configuration variables that must be set are in
    'example.hrc'
