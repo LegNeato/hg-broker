@@ -3,4 +3,4 @@ BROKER_HOST = localhost
 BROKER_USER = guest
 BROKER_PASS = guest
 MSG_EXCHANGE = amqp.topic
-REPO_ROOT = /path/to/your/repo # Change this
+BASE_PATH  = /path/to/your/repo # Change this

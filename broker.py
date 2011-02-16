@@ -64,7 +64,7 @@ def get_configuration(ui):
         'MSG_EXCHANGE',
 
         # Full path to where the repositories are stored
-        'REPO_ROOT',
+        'BASE_PATH',
     ]
 
     # Optional config variables and their default values
@@ -162,7 +162,7 @@ def send_push_message(connection, data):
     # Construct the routing key from the info in the push
     routing_key = "%s%s.%s%s" % (CONF['MSG_ROUTING_PREFIX'],
                                  CONF['LABEL_PUSH'], 
-                                 data['repository'].replace('/','.'),
+                                 data['repository'].replace('.', '[:dot:]').replace('/','.'),
                                  CONF['MSG_ROUTING_POSTFIX'])
     routing_key = re.sub(r'\.+', '.', routing_key)
     _send_message(connection, routing_key, data, CONF['MSG_USE_ENVELOPE'])
@@ -174,10 +174,10 @@ def send_changeset_message(connection, data):
         branch = data['branch']
     # Construct the routing key from the info in the changeset
     routing_key = "%s%s.%s.%s%s" % (CONF['MSG_ROUTING_PREFIX'],
-                                 CONF['LABEL_CHANGESET'],
-                                 data['repository'].replace('/','.'),
-                                 branch,
-                                 CONF['MSG_ROUTING_POSTFIX'])
+                                    CONF['LABEL_CHANGESET'],
+                                    data['repository'].replace('.', '[:dot:]').replace('/','.'),
+                                    branch,
+                                    CONF['MSG_ROUTING_POSTFIX'])
     routing_key = re.sub(r'\.+', '.', routing_key)
     _send_message(connection, routing_key, data, CONF['MSG_USE_ENVELOPE'])
 
@@ -229,7 +229,8 @@ def get_push_data(ui, repo, node):
 
     # The repository is a full path. Cut off to the containing directory
     # if we were given one
-    data['repository'] = repo.path.replace(CONF['REPO_ROOT'], '')
+    (full_path, xxx)  = os.path.split(repo.path)
+    data['repository'] = full_path.replace(CONF['BASE_PATH'], '')
 
     # By default we have no changesets
     data[CONF['LABEL_CHANGESETS']] = []
