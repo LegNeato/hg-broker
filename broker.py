@@ -231,6 +231,7 @@ def get_push_data(ui, repo, node):
     # if we were given one
     (full_path, xxx)  = os.path.split(repo.path)
     data['repository'] = full_path.replace(CONF['BASE_PATH'], '')
+    data['repository'] = re.sub(r'^/(.*)$', r'\1', data['repository'])
 
     # By default we have no changesets
     data[CONF['LABEL_CHANGESETS']] = []
