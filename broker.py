@@ -231,7 +231,7 @@ def get_push_data(ui, repo, node):
     # if we were given one
     (full_path, xxx)  = os.path.split(repo.path)
     data['repository'] = full_path.replace(CONF['BASE_PATH'], '')
-    data['repository'] = re.sub(r'^/(.*)$', r'\1', data['repository'])
+    data['repository'] = re.sub(r'^/', r'', data['repository'])
 
     # By default we have no changesets
     data[CONF['LABEL_CHANGESETS']] = []
@@ -328,10 +328,20 @@ def get_push_data(ui, repo, node):
         for path in ctx.files():
 
             # Get the file contexts
-            newfilectx = ctx.filectx(path)
-            oldfilectx = repo.changectx(node).filectx(path)
+            # See bug 660137
+            try:
+                newfilectx = ctx.filectx(path)
+            except:
+                newfilectx = None
+            try:
+                oldfilectx = repo.changectx(node).filectx(path)
+            except:
+                oldfilectx = None
 
-            if not oldfilectx or not newfilectx.filerev():
+            if not newfilectx and not oldfilectx:
+                # Removed file
+                changesetdata['files']['removed'].append(path)
+            elif not oldfilectx or not newfilectx.filerev():
                 # Added file
                 changesetdata['files']['added'].append(path)
             elif not newfilectx or \
