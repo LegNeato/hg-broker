@@ -22,4 +22,12 @@ Installing
 
 Limitations
 ====================
+
 1. Assumes the exchange you are publishing to is a topic exchange
+2. No SSL support yet
+3. The parsing is hardcoded. Eventually I want to have parse plugins
+
+TODO
+====================
+
+1. Write some tests
